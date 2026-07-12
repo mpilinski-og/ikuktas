@@ -1,0 +1,13 @@
+{
+  "api_url": "https://ikuktas.mpilinski-a2d.workers.dev/api/data",
+  "api_key": "d78aa7cac6e54b01aabeddeb4f676fbe",
+  "interval": 60,
+
+  "sensors": {
+    "28-00000d964432": "temp1",
+    "28-00000d96fca4": "temp2",
+    "28-00000d495fe6": "temp3",
+    "28-00000b3b5eb4": "temp4",
+    "28-00000d495432": "temp5"
+  }
+}

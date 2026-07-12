@@ -7,7 +7,7 @@ import { AppComponent } from './app.component';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 
 import { MatToolbarModule } from '@angular/material/toolbar'; 
-import { NgChartsModule } from 'ng2-charts';
+import { ChartsModule } from 'ng2-charts';
 
 @NgModule({
   declarations: [
@@ -19,7 +19,7 @@ import { NgChartsModule } from 'ng2-charts';
     BrowserAnimationsModule,
     MatToolbarModule,
     HttpClientModule,
-    NgChartsModule
+    ChartsModule
   ],
   providers: [],
   bootstrap: [AppComponent]

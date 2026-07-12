@@ -123,5 +123,8 @@
       }
     }
   },
-  "defaultProject": "iKuktasClient"
+  "defaultProject": "iKuktasClient",
+  "cli": {
+    "analytics": false
+  }
 }

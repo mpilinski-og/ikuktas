@@ -80,17 +80,25 @@
           <div class="top-spacer">
             <b>Dane dzienne:</b>
           </div>
-          <canvas baseChart
-            [data]="chartDayData"
-            [type]="'line'"
+          <canvas
+            baseChart
+            [datasets]="chartDayData?.datasets"
+            [labels]="chartDayData?.labels"
+            [options]="chartOptions"
+            [legend]="true"
+            [chartType]="chartType"
             height="120px">
           </canvas>
           <div class="top-spacer">
             <b>Dane miesięczne:</b>
           </div>
-          <canvas baseChart
-            [data]="chartMonthData"
-            [type]="'line'"
+          <canvas
+            baseChart
+            [datasets]="chartMonthData?.datasets"
+            [labels]="chartMonthData?.labels"
+            [options]="chartOptions"
+            [legend]="true"
+            [chartType]="chartType"
             height="120px">
           </canvas>
         </div>
