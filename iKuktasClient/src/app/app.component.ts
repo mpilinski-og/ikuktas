@@ -8,7 +8,36 @@ import { HttpClient } from '@angular/common/http';
 import { GraphModel } from './models/graph.model';
 import { IAppConfig } from './models/app-config.interface';
 import { Label } from 'ng2-charts'; 
-import { ChartDataSets, ChartOptions } from 'chart.js';
+import { ChartDataSets, ChartOptions, Chart } from 'chart.js';
+
+const predictionSeparatorPlugin = {
+  id: 'predictionSeparator',
+  afterDraw: (chart: any) => {
+    const component = chart.config.options.plugins.predictionSeparator;
+
+    if (!component?.index) {
+      return;
+    }
+
+    const xScale = chart.scales['x-axis-0'];
+    const x = xScale.getPixelForValue(component.index);
+
+    const ctx = chart.chart.ctx;
+    const chartArea = chart.chartArea;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = 'gray';
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+Chart.plugins.register(predictionSeparatorPlugin);
 
 @Component({
   selector: 'app-root',
@@ -25,7 +54,7 @@ export class AppComponent implements OnInit {
   data: SummaryModel;
   graphDataMonth: GraphModel = null;
   graphDataDay: GraphModel = null;
-
+  
   chartMonthData: {
     labels: Label[];
     datasets: ChartDataSets[];
@@ -51,6 +80,36 @@ export class AppComponent implements OnInit {
           maxTicksLimit: 10
         }
       }]
+    },
+    animation: {
+      duration: 0
+    },
+    legend: { 
+      labels: {
+        filter: (legendItem: any, chartData: any) => {
+
+          if (
+            !chartData ||
+            !chartData.datasets ||
+            legendItem.datasetIndex == null
+          ) {
+            return true;
+          }
+
+          const dataset = chartData.datasets[legendItem.datasetIndex];
+
+          if (!dataset || !dataset.label) {
+            return true;
+          }
+
+          return !dataset.label.startsWith('Prediction-');
+        }
+      }
+    },
+    plugins: {
+      predictionSeparator: {
+        index: 250
+      }
     }
   };
   
@@ -104,6 +163,77 @@ export class AppComponent implements OnInit {
         leftTopTemps: source.map(item => item.temp5)
     };
   }
+setPreditionData() {
+  this.http.get<any>(
+    this.settings.baseUrl + '/api/prediction',
+    {
+      params: {
+        hours: '8',
+        points: '85'
+      },
+      headers: {
+        'X-Viewer-Key': '62df462c-cf07-48f8-a8c1-45e3c48529ea'
+      }
+    }
+  ).subscribe(request => {
+    const prediction = request.prediction;
+
+    // Keep only historical labels
+    const historyLabels = this.graphDataDay.timeStamps.map(x =>
+      x.toLocaleTimeString('pl-PL', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    );
+
+    const predictionLabels = prediction.temp1.map(p =>
+      new Date(p.timestamp * 1000).toLocaleTimeString('pl-PL', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    );
+
+    this.chartDayData.labels = [
+      ...historyLabels,
+      ...predictionLabels
+    ];
+
+    // Keep only non-prediction datasets
+    const historyDatasets = this.chartDayData.datasets.filter(
+      dataset => !dataset.label?.startsWith('Prediction-')
+    );
+
+    this.chartDayData.datasets = historyDatasets;
+
+    this.addPredictionDataset('Prediction-Zewn-1', prediction.temp5);
+    this.addPredictionDataset('Prediction-Wew-1', prediction.temp4);
+    this.addPredictionDataset('Prediction-Wew-2', prediction.temp1);
+    this.addPredictionDataset('Prediction-Wew-3', prediction.temp2);
+    this.addPredictionDataset('Prediction-Wew-4', prediction.temp3);
+  });
+}
+
+  private addPredictionDataset(
+    label: string,
+    prediction: any[]
+  ) {
+    const historyLength =
+        this.chartDayData.labels.length -
+        prediction.length;
+
+    const data =
+        new Array(historyLength).fill(null);
+    prediction.forEach(p => data.push(p.value));
+    this.chartDayData.datasets.push({
+        label,
+        data,
+        fill: false,
+        lineTension: 0.1,
+        borderDash: [2, 2],
+        pointRadius: 0,
+        borderColor: '#999999',
+    });
+  }
 
   initHttpRequests() {
     if(!this.settings) return;
@@ -123,6 +253,8 @@ export class AppComponent implements OnInit {
         }
       ).subscribe(data => {
         this.data = this.mapToSummaryModel(data);
+
+        this.setPreditionData()
       });
     });
 
@@ -131,7 +263,7 @@ export class AppComponent implements OnInit {
         this.settings.baseUrl + '/api/last-hours',
         {
           params: {
-            n: "24"
+            n: "720"
           },
           headers: {
             'X-Viewer-Key': "62df462c-cf07-48f8-a8c1-45e3c48529ea"
@@ -193,7 +325,7 @@ export class AppComponent implements OnInit {
         this.settings.baseUrl + '/api/last-hours',
         {
           params: {
-            n: "720"
+            n: "24"
           },
           headers: {
             'X-Viewer-Key': "62df462c-cf07-48f8-a8c1-45e3c48529ea"
@@ -245,6 +377,8 @@ export class AppComponent implements OnInit {
     })
   }
 
+
+  
   initAudio() {
     let audio = new Audio();
     audio.src = "assets/alarm.wav";
