@@ -13,6 +13,7 @@ CONFIG_FILE = "config.json"
 TEMPERATURE_QUEUE_FILE = "temperature_queue.jsonl"
 LOG_QUEUE_FILE = "logs_queue.jsonl"
 
+
 # Network retry configuration
 UPLOAD_RETRIES = 3
 RETRY_DELAY = 2
@@ -48,8 +49,8 @@ def post_with_retry(url, **kwargs):
 
 class ApiLogHandler(logging.Handler):
     """
-    Sends Python logging records to the remote /api/logs endpoint.
-    Queues logs locally when offline.
+    Writes Python logging records to a local queue.
+    Uploading is handled separately by flush_log_queue().
     """
 
     def __init__(self, api_url, api_key, source="temperature-uploader"):
@@ -68,31 +69,18 @@ class ApiLogHandler(logging.Handler):
         }
 
         try:
-            response = post_with_retry(
-                self.api_url,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-API-Key": self.api_key,
-                },
-                json=payload,
-                timeout=5,
-            )
-
-            if response.status_code not in (200, 201, 409):
-                response.raise_for_status()
+            with open(LOG_QUEUE_FILE, "a") as f:
+                f.write(json.dumps(payload))
+                f.write("\n")
 
         except Exception:
-            try:
-                with open(LOG_QUEUE_FILE, "a") as f:
-                    f.write(json.dumps(payload))
-                    f.write("\n")
-            except Exception:
-                pass
+            pass
 
 
 def load_config():
     with open(CONFIG_FILE) as f:
         return json.load(f)
+
     return None
 
 
@@ -101,7 +89,12 @@ config = load_config()
 API_URL = config["api_url"]
 LOGS_API_URL = config["logs_api_url"]
 API_KEY = config["api_key"]
-INTERVAL = config.get("interval", 60)
+
+INTERVAL = config.get(
+    "interval",
+    60
+)
+
 SENSORS = config["sensors"]
 
 HEADERS = {
@@ -122,15 +115,20 @@ api_log_handler = ApiLogHandler(
     source="temperature-uploader"
 )
 
-api_log_handler.setLevel(logging.INFO)
+api_log_handler.setLevel(
+    logging.INFO
+)
 
 api_log_handler.setFormatter(
     logging.Formatter("%(message)s")
 )
 
-logging.getLogger().addHandler(api_log_handler)
+logging.getLogger().addHandler(
+    api_log_handler
+)
+
 def read_sensor(sensor_id):
-    path = f"/sys/bus/w1/devices/{sensor_id}/w1_slave"
+    path = f"/sys/bus/1wire/devices/{sensor_id}/w1_slave"
 
     with open(path) as f:
         lines = f.readlines()
@@ -142,7 +140,10 @@ def read_sensor(sensor_id):
 
     value = lines[1].split("t=")[1]
 
-    return round(int(value) / 1000.0, 2)
+    return round(
+        int(value) / 1000.0,
+        2
+    )
 
 
 def read_temperatures():
@@ -222,7 +223,9 @@ def save_queue(items, queue_file):
 
     with open(queue_file, "w") as f:
         for item in items:
-            f.write(json.dumps(item))
+            f.write(
+                json.dumps(item)
+            )
             f.write("\n")
 
 
@@ -292,15 +295,15 @@ def flush_log_queue():
         try:
             send_log(item)
 
-            logging.info(
-                "Uploaded queued log: %s",
-                item["message"]
+            # Do not use logging.info here.
+            # It would create another queued log while flushing.
+            print(
+                f"Uploaded queued log: {item['message']}"
             )
 
         except Exception as e:
-            logging.warning(
-                "Still unable to upload logs: %s",
-                e
+            print(
+                f"Still unable to upload logs: {e}"
             )
 
             remaining = logs[index:]
@@ -335,12 +338,6 @@ def main():
 
     while True:
         try:
-            # First upload old logs
-            flush_log_queue()
-
-            # Then upload old measurements
-            flush_temperature_queue()
-
             payload = read_temperatures()
 
             try:
@@ -360,6 +357,14 @@ def main():
                 queue_temperature(
                     payload
                 )
+
+
+            # Upload queued logs once per interval
+            flush_log_queue()
+
+            # Upload queued temperatures
+            flush_temperature_queue()
+
 
         except Exception:
             logging.exception(
