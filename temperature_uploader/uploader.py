@@ -6,6 +6,8 @@ import os
 import requests
 import time
 
+session = requests.Session()
+
 CONFIG_FILE = "config.json"
 
 TEMPERATURE_QUEUE_FILE = "temperature_queue.jsonl"
@@ -33,7 +35,7 @@ class ApiLogHandler(logging.Handler):
         }
 
         try:
-            response = requests.post(
+            response = session.post(
                 self.api_url,
                 headers={
                     "Content-Type": "application/json",
@@ -111,7 +113,7 @@ def read_temperatures():
     return payload
 
 def send(payload):
-    response = requests.post(
+    response = session.post(
         API_URL,
         headers=HEADERS,
         json=payload,
@@ -228,7 +230,7 @@ def flush_log_queue():
     save_log_queue(remaining)
 
 def send_log(payload):
-    response = requests.post(
+    response = session.post(
         LOGS_API_URL,
         headers={
             "Content-Type": "application/json",
@@ -270,6 +272,7 @@ def main():
                     e
                 )
                 queue_temperature(payload)
+
         except Exception:
             logging.exception(
                 "Measurement failed"
